@@ -29,40 +29,52 @@ def extract_text_from_pdf(file_path):
     return text
 
 def handle_upload(uploaded_files):
-    all_chunks = []
-    metadata = []
+    # Load existing index and metadata if available
+    if os.path.exists(INDEX_FILE) and os.path.exists(METADATA_FILE):
+        index = faiss.read_index(INDEX_FILE)
+        with open(METADATA_FILE, "rb") as f:
+            metadata = pickle.load(f)
+    else:
+        index = None
+        metadata = []
+
+    all_new_chunks = []
+    new_metadata = []
 
     for file in uploaded_files:
         filename = file.name
         file_path = os.path.join(DOCS_DIR, filename)
 
-        # Save file
         with open(file_path, "wb") as f:
             f.write(file.getbuffer())
 
-        # Extract text
         text = extract_text_from_pdf(file_path)
         if not text.strip():
             st.warning(f"⚠️ No readable text found in {filename}. Skipping.")
             continue
 
-        # Chunk and track
         chunks = chunk_text(text)
-        all_chunks.extend(chunks)
-        metadata.extend([{"source": filename, "text": chunk} for chunk in chunks])
+        all_new_chunks.extend(chunks)
+        new_metadata.extend([{"source": filename, "text": chunk} for chunk in chunks])
 
-        # Success message per file
         st.success(f"✅ {filename} indexed successfully.")
 
-    if not all_chunks:
+    if not all_new_chunks:
         st.error("❌ No valid text chunks found in any PDF.")
         return
 
-    # Encode and index
-    embeddings = model.encode(all_chunks)
-    dimension = embeddings[0].shape[0]
-    index = faiss.IndexFlatL2(dimension)
-    index.add(embeddings)
+    new_embeddings = model.encode(all_new_chunks)
+
+    if index is None:
+        # First time creating index
+        dimension = new_embeddings[0].shape[0]
+        index = faiss.IndexFlatL2(dimension)
+        index.add(new_embeddings)
+    else:
+        index.add(new_embeddings)
+
+    # Append new metadata
+    metadata.extend(new_metadata)
 
     # Save index and metadata
     faiss.write_index(index, INDEX_FILE)
