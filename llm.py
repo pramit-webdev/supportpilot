@@ -1,18 +1,13 @@
 import os
 import requests
-from dotenv import load_dotenv
+import streamlit as st
 
-# Load GROQ_API_KEY from .env
-load_dotenv()
-GROQ_API_KEY = os.getenv("GROQ_API_KEY")
+GROQ_API_KEY = st.secrets.get("GROQ_API_KEY")
 
 GROQ_API_URL = "https://api.groq.com/openai/v1/chat/completions"
-MODEL_NAME = "llama3-8b-8192"  # fast + free
+MODEL_NAME = "llama3-8b-8192"
 
-def query_llm(prompt):
-    if not GROQ_API_KEY:
-        return "❌ Missing GROQ_API_KEY in .env file"
-
+def stream_llm_response(prompt):
     headers = {
         "Authorization": f"Bearer {GROQ_API_KEY}",
         "Content-Type": "application/json"
@@ -24,13 +19,24 @@ def query_llm(prompt):
             {"role": "system", "content": "You are a helpful customer support assistant."},
             {"role": "user", "content": prompt}
         ],
+        "stream": True,
         "temperature": 0.2
     }
 
     try:
-        response = requests.post(GROQ_API_URL, headers=headers, json=payload)
-        response.raise_for_status()
-        data = response.json()
-        return data["choices"][0]["message"]["content"].strip()
+        with requests.post(GROQ_API_URL, headers=headers, json=payload, stream=True) as response:
+            response.raise_for_status()
+            partial_text = ""
+            for line in response.iter_lines():
+                if line:
+                    if line.decode().strip() == "data: [DONE]":
+                        break
+                    try:
+                        data = line.decode().replace("data: ", "")
+                        token = eval(data)["choices"][0]["delta"].get("content", "")
+                        partial_text += token
+                        yield token
+                    except Exception:
+                        continue
     except requests.exceptions.RequestException as e:
-        return f"⚠️ API request failed: {e}"
+        yield f"\n⚠️ API request failed: {e}"
