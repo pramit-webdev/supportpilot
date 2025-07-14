@@ -14,36 +14,42 @@ st.session_state.debug = debug_mode
 # --- Paths ---
 INDEX_PATH = "data/faiss_index/support_index.faiss"
 
-# --- Sidebar: Upload PDFs ---
-st.sidebar.header("📁 Upload Knowledge Base")
-uploaded_files = st.sidebar.file_uploader("Upload PDFs", type=["pdf"], accept_multiple_files=True)
-
-if uploaded_files:
-    with st.spinner("🔄 Indexing documents..."):
-        handle_upload(uploaded_files)
-    st.sidebar.success("✅ Documents uploaded and indexed.")
-
-# --- Sidebar: Reset Button ---
-if st.sidebar.button("🗑️ Reset All Documents"):
-    reset_index()
-    st.sidebar.warning("🧹 All documents and index cleared.")
-    st.rerun()  # Clear chat + UI
-
-# --- Check if FAISS index exists ---
-index_ready = os.path.exists(INDEX_PATH)
-
-# --- Initialize Chat History ---
+# --- Init Session State ---
 if "messages" not in st.session_state:
     st.session_state.messages = [
         {"role": "ai", "content": "Hi! I'm SupportPilot. Upload your PDFs and ask me anything!"}
     ]
 
-# --- Display Chat Messages (ChatGPT style) ---
+if "files_indexed" not in st.session_state:
+    st.session_state.files_indexed = False
+
+# --- Sidebar: Upload PDFs ---
+st.sidebar.header("📁 Upload Knowledge Base")
+uploaded_files = st.sidebar.file_uploader("Upload PDFs", type=["pdf"], accept_multiple_files=True)
+
+# Only index on first upload
+if uploaded_files and not st.session_state.files_indexed:
+    with st.spinner("🔄 Indexing documents..."):
+        handle_upload(uploaded_files)
+    st.sidebar.success("✅ Documents uploaded and indexed.")
+    st.session_state.files_indexed = True
+
+# --- Sidebar: Reset Button ---
+if st.sidebar.button("🗑️ Reset All Documents"):
+    reset_index()
+    st.session_state.files_indexed = False
+    st.sidebar.warning("🧹 All documents and index cleared.")
+    st.rerun()  # refresh everything
+
+# --- Check if FAISS index exists ---
+index_ready = os.path.exists(INDEX_PATH)
+
+# --- Display Chat History ---
 for msg in st.session_state.messages:
     with st.chat_message(msg["role"]):
         st.markdown(msg["content"])
 
-# --- Block Chat Input If No PDFs Uploaded ---
+# --- Block Chat Input Until Documents Are Uploaded ---
 if not index_ready:
     st.info("📄 Please upload support PDFs from the sidebar to activate SupportPilot.")
     st.stop()
@@ -52,15 +58,16 @@ if not index_ready:
 user_input = st.chat_input("Type your question...")
 
 if user_input:
-    # Add user message to chat history
+    # Add user message
     st.session_state.messages.append({"role": "user", "content": user_input})
     with st.chat_message("user"):
         st.markdown(user_input)
 
-    # Get full AI response (non-streaming)
+    # Show loader while fetching answer
     with st.chat_message("ai"):
-        full_response = get_answer(user_input)
-        st.markdown(full_response)
+        with st.spinner("💬 SupportPilot is thinking..."):
+            full_response = get_answer(user_input)
+            st.markdown(full_response)
 
-    # Add AI response to chat history
+    # Save response to history
     st.session_state.messages.append({"role": "ai", "content": full_response})
