@@ -43,7 +43,9 @@ def handle_upload(uploaded_files):
         chunks = chunk_text(text)
 
         all_chunks.extend(chunks)
-        metadata.extend([{"source": filename}] * len(chunks))
+        metadata.extend([
+            {"source": filename, "text": chunk} for chunk in chunks
+        ])
 
     # Create embeddings
     embeddings = model.encode(all_chunks)
@@ -57,7 +59,6 @@ def handle_upload(uploaded_files):
     faiss.write_index(index, INDEX_FILE)
     with open(METADATA_FILE, "wb") as f:
         pickle.dump(metadata, f)
-
 
 def reset_index():
     # Clear FAISS index and docs

@@ -34,20 +34,21 @@ def retrieve_context(query, k=3):
     contexts = []
     for idx in indices[0]:
         if 0 <= idx < len(metadata):
+            chunk = metadata[idx].get("text", "")
             source = metadata[idx].get("source", "unknown")
-            chunk_text = f"(From `{source}`) → chunk #{idx}"
+            chunk_text = f"{chunk}\n\n(Source: {source})"
             contexts.append(chunk_text)
 
     return contexts
 
-# Build RAG prompt + stream from Groq
+# Build RAG prompt and stream from Groq
 def get_answer(query):
     context_chunks = retrieve_context(query)
-    if isinstance(context_chunks, str):  # error case
+    if isinstance(context_chunks, str):  # error message
         yield context_chunks
         return
 
-    # Construct prompt
+    # Build prompt
     context = "\n\n".join(context_chunks)
     prompt = f"""You are a helpful AI customer support assistant.
 
@@ -59,5 +60,8 @@ Context:
 Question: {query}
 Answer:"""
 
-    # Stream from LLM
+    # Debug print (optional)
+    print(f"\n[DEBUG] Prompt sent to Groq:\n{prompt[:1000]}...\n")
+
+    # Stream from Groq
     yield from stream_llm_response(prompt)
