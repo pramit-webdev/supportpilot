@@ -7,6 +7,10 @@ import os
 st.set_page_config(page_title="SupportPilot", layout="wide")
 st.title("🤖 SupportPilot – AI Customer Support Assistant")
 
+# --- Debug Toggle ---
+debug_mode = st.sidebar.checkbox("🛠 Show debug logs")
+st.session_state.debug = debug_mode
+
 # --- Paths ---
 INDEX_PATH = "data/faiss_index/support_index.faiss"
 

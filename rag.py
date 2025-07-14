@@ -1,6 +1,7 @@
 import os
 import faiss
 import pickle
+import streamlit as st
 from sentence_transformers import SentenceTransformer
 from llm import stream_llm_response
 
@@ -13,12 +14,16 @@ model = SentenceTransformer("all-MiniLM-L6-v2")
 
 def load_faiss_and_metadata():
     if not os.path.exists(INDEX_FILE) or not os.path.exists(METADATA_FILE):
-        print("[ERROR] FAISS index or metadata missing.")
+        if st.session_state.get("debug"):
+            st.write("[ERROR] FAISS index or metadata missing.")
         return None, None
+
     index = faiss.read_index(INDEX_FILE)
     with open(METADATA_FILE, "rb") as f:
         metadata = pickle.load(f)
-    print(f"[DEBUG] Loaded index and metadata: {len(metadata)} entries")
+
+    if st.session_state.get("debug"):
+        st.write(f"[DEBUG] Loaded index and metadata: {len(metadata)} entries")
     return index, metadata
 
 def retrieve_context(query, k=3):
@@ -36,13 +41,17 @@ def retrieve_context(query, k=3):
             source = metadata[idx].get("source", "unknown")
             chunk_text = f"{chunk}\n\n(Source: {source})"
             contexts.append(chunk_text)
+            if st.session_state.get("debug"):
+                st.write(f"[DEBUG] Context chunk #{idx} (source: {source}):")
+                st.code(chunk[:300])  # Preview first 300 chars
 
-    print(f"[DEBUG] Retrieved {len(contexts)} relevant chunks.")
+    if st.session_state.get("debug"):
+        st.write(f"[DEBUG] Retrieved {len(contexts)} relevant chunks.")
     return contexts
 
 def get_answer(query):
     context_chunks = retrieve_context(query)
-    if isinstance(context_chunks, str):  # Error string
+    if isinstance(context_chunks, str):  # error message
         yield context_chunks
         return
 
@@ -57,6 +66,8 @@ Context:
 Question: {query}
 Answer:"""
 
-    print(f"[DEBUG] Prompt sent to Groq:\n{prompt[:500]}...\n")
+    if st.session_state.get("debug"):
+        st.write("[DEBUG] Prompt sent to Groq:")
+        st.code(prompt[:800])  # Print first part of prompt
 
     yield from stream_llm_response(prompt)
