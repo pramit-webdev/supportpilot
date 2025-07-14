@@ -19,7 +19,6 @@ if "messages" not in st.session_state:
     st.session_state.messages = [
         {"role": "ai", "content": "Hi! I'm SupportPilot. Upload your PDFs and ask me anything!"}
     ]
-
 if "files_indexed" not in st.session_state:
     st.session_state.files_indexed = False
 
@@ -27,7 +26,6 @@ if "files_indexed" not in st.session_state:
 st.sidebar.header("📁 Upload Knowledge Base")
 uploaded_files = st.sidebar.file_uploader("Upload PDFs", type=["pdf"], accept_multiple_files=True)
 
-# Only index on first upload
 if uploaded_files and not st.session_state.files_indexed:
     with st.spinner("🔄 Indexing documents..."):
         handle_upload(uploaded_files)
@@ -39,9 +37,9 @@ if st.sidebar.button("🗑️ Reset All Documents"):
     reset_index()
     st.session_state.files_indexed = False
     st.sidebar.warning("🧹 All documents and index cleared.")
-    st.rerun()  # refresh everything
+    st.rerun()
 
-# --- Check if FAISS index exists ---
+# --- Check FAISS Index Exists ---
 index_ready = os.path.exists(INDEX_PATH)
 
 # --- Display Chat History ---
@@ -49,7 +47,7 @@ for msg in st.session_state.messages:
     with st.chat_message(msg["role"]):
         st.markdown(msg["content"])
 
-# --- Block Chat Input Until Documents Are Uploaded ---
+# --- Block Chat if No Index ---
 if not index_ready:
     st.info("📄 Please upload support PDFs from the sidebar to activate SupportPilot.")
     st.stop()
@@ -63,11 +61,16 @@ if user_input:
     with st.chat_message("user"):
         st.markdown(user_input)
 
-    # Show loader while fetching answer
+    # Get AI response
     with st.chat_message("ai"):
         with st.spinner("💬 SupportPilot is thinking..."):
-            full_response = get_answer(user_input)
-            st.markdown(full_response)
+            full_response, source_chunks = get_answer(user_input)
+        st.markdown(full_response)
 
-    # Save response to history
+        # Show context viewer
+        with st.expander("🔍 Show sources used to answer this question"):
+            for chunk in source_chunks:
+                st.markdown(f"```text\n{chunk}\n```")
+
+    # Add to chat history
     st.session_state.messages.append({"role": "ai", "content": full_response})
