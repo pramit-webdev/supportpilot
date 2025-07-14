@@ -9,7 +9,7 @@ METADATA_FILE = "data/faiss_index/metadata.pkl"
 
 model = SentenceTransformer("all-MiniLM-L6-v2")
 
-def load_faiss_and_metadata():
+def load_index_and_metadata():
     if not os.path.exists(INDEX_FILE) or not os.path.exists(METADATA_FILE):
         return None, None
     index = faiss.read_index(INDEX_FILE)
@@ -18,35 +18,33 @@ def load_faiss_and_metadata():
     return index, metadata
 
 def retrieve_context(query, k=3):
-    index, metadata = load_faiss_and_metadata()
-    if index is None:
-        return "⚠️ No documents found. Please upload support PDFs first."
+    index, metadata = load_index_and_metadata()
+    if index is None or metadata is None:
+        return "⚠️ No index found. Please upload documents.", []
 
     query_vector = model.encode([query])
     distances, indices = index.search(query_vector, k)
 
-    contexts = []
+    context_chunks = []
     for idx in indices[0]:
         if 0 <= idx < len(metadata):
-            source = metadata[idx].get("source", "unknown")
-            text = metadata[idx].get("text", "")[:500]  # Trim for safety
-            chunk_info = f"From {source}:\n{text.strip()}"
-            contexts.append(chunk_info)
-    return contexts
+            source = metadata[idx]["source"]
+            text = metadata[idx]["text"]
+            context_chunks.append(f"From **{source}**:\n{text.strip()[:500]}")
+    return context_chunks
 
 def get_answer(query):
     context_chunks = retrieve_context(query)
-    if isinstance(context_chunks, str):  # error message
+    if isinstance(context_chunks, str):
         return context_chunks, []
 
-    # Construct prompt
-    context = "\n\n".join(context_chunks)
+    context_str = "\n\n".join(context_chunks)
     prompt = f"""You are a helpful AI customer support assistant.
 
-Use the following document context to answer the user's question.
+Use the following context from documents to answer the user's question.
 
 Context:
-{context}
+{context_str}
 
 Question: {query}
 Answer:"""

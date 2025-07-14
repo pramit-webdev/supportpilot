@@ -19,9 +19,11 @@ def call_llm(prompt):
         ],
         "temperature": 0.2
     }
+
     try:
         response = requests.post(GROQ_API_URL, headers=headers, json=payload)
         response.raise_for_status()
-        return response.json()["choices"][0]["message"]["content"]
+        data = response.json()
+        return data["choices"][0]["message"]["content"]
     except requests.exceptions.RequestException as e:
         return f"❌ API error: {e}"

@@ -2,7 +2,7 @@ import os
 import faiss
 import pickle
 import streamlit as st
-from PyPDF2 import PdfReader
+import pdfplumber
 from sentence_transformers import SentenceTransformer
 from utils import chunk_text
 
@@ -17,12 +17,12 @@ os.makedirs(DOCS_DIR, exist_ok=True)
 os.makedirs(INDEX_DIR, exist_ok=True)
 
 def extract_text_from_pdf(file_path):
-    reader = PdfReader(file_path)
     text = ""
-    for page in reader.pages:
-        page_text = page.extract_text()
-        if page_text:
-            text += page_text
+    with pdfplumber.open(file_path) as pdf:
+        for page in pdf.pages:
+            page_text = page.extract_text()
+            if page_text:
+                text += page_text
     return text
 
 def handle_upload(uploaded_files):
@@ -32,19 +32,22 @@ def handle_upload(uploaded_files):
     for file in uploaded_files:
         filename = file.name
         file_path = os.path.join(DOCS_DIR, filename)
+
         with open(file_path, "wb") as f:
             f.write(file.getbuffer())
 
         text = extract_text_from_pdf(file_path)
         if not text.strip():
+            st.warning(f"⚠️ No readable text found in {filename}. Skipping.")
             continue
 
         chunks = chunk_text(text)
         all_chunks.extend(chunks)
         metadata.extend([{"source": filename, "text": chunk} for chunk in chunks])
+        st.success(f"✅ {filename} processed and indexed.")
 
     if not all_chunks:
-        st.error("❌ No valid text found in PDFs.")
+        st.error("❌ No valid text found in any PDFs.")
         return
 
     embeddings = model.encode(all_chunks)
