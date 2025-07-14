@@ -34,6 +34,7 @@ def stream_llm_response(prompt):
                         data = line.decode().replace("data: ", "")
                         token = eval(data)["choices"][0]["delta"].get("content", "")
                         if token:
+                            print(f"[DEBUG] Token: {token}")
                             yield token
                     except Exception:
                         continue

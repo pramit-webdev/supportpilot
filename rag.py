@@ -8,21 +8,19 @@ from llm import stream_llm_response
 INDEX_FILE = "data/faiss_index/support_index.faiss"
 METADATA_FILE = "data/faiss_index/metadata.pkl"
 
-# Load model once
+# Load model
 model = SentenceTransformer("all-MiniLM-L6-v2")
 
-# Load FAISS index and metadata
 def load_faiss_and_metadata():
     if not os.path.exists(INDEX_FILE) or not os.path.exists(METADATA_FILE):
+        print("[ERROR] FAISS index or metadata missing.")
         return None, None
-
     index = faiss.read_index(INDEX_FILE)
     with open(METADATA_FILE, "rb") as f:
         metadata = pickle.load(f)
-
+    print(f"[DEBUG] Loaded index and metadata: {len(metadata)} entries")
     return index, metadata
 
-# Retrieve top-k relevant context chunks
 def retrieve_context(query, k=3):
     index, metadata = load_faiss_and_metadata()
     if index is None:
@@ -39,16 +37,15 @@ def retrieve_context(query, k=3):
             chunk_text = f"{chunk}\n\n(Source: {source})"
             contexts.append(chunk_text)
 
+    print(f"[DEBUG] Retrieved {len(contexts)} relevant chunks.")
     return contexts
 
-# Build RAG prompt and stream from Groq
 def get_answer(query):
     context_chunks = retrieve_context(query)
-    if isinstance(context_chunks, str):  # error message
+    if isinstance(context_chunks, str):  # Error string
         yield context_chunks
         return
 
-    # Build prompt
     context = "\n\n".join(context_chunks)
     prompt = f"""You are a helpful AI customer support assistant.
 
@@ -60,8 +57,6 @@ Context:
 Question: {query}
 Answer:"""
 
-    # Debug print (optional)
-    print(f"\n[DEBUG] Prompt sent to Groq:\n{prompt[:1000]}...\n")
+    print(f"[DEBUG] Prompt sent to Groq:\n{prompt[:500]}...\n")
 
-    # Stream from Groq
     yield from stream_llm_response(prompt)
