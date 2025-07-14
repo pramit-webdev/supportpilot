@@ -11,6 +11,7 @@ def call_llm(prompt):
         "Authorization": f"Bearer {GROQ_API_KEY}",
         "Content-Type": "application/json"
     }
+
     payload = {
         "model": MODEL_NAME,
         "messages": [
@@ -23,7 +24,7 @@ def call_llm(prompt):
     try:
         response = requests.post(GROQ_API_URL, headers=headers, json=payload)
         response.raise_for_status()
-        data = response.json()
-        return data["choices"][0]["message"]["content"]
+        reply = response.json()["choices"][0]["message"]["content"]
+        return reply
     except requests.exceptions.RequestException as e:
         return f"❌ API error: {e}"
