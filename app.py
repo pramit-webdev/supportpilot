@@ -57,10 +57,10 @@ if user_input:
     with st.chat_message("user"):
         st.markdown(user_input)
 
-    # Stream AI response
+    # Get full AI response (non-streaming)
     with st.chat_message("ai"):
-        response_stream = get_answer(user_input)
-        full_response = st.write_stream(response_stream)
+        full_response = get_answer(user_input)
+        st.markdown(full_response)
 
     # Add AI response to chat history
     st.session_state.messages.append({"role": "ai", "content": full_response})
