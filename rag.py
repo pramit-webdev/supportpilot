@@ -6,7 +6,6 @@ from llm import call_llm
 
 INDEX_FILE = "data/faiss_index/support_index.faiss"
 METADATA_FILE = "data/faiss_index/metadata.pkl"
-
 model = SentenceTransformer("all-MiniLM-L6-v2")
 
 def load_index_and_metadata():
@@ -20,7 +19,7 @@ def load_index_and_metadata():
 def retrieve_context(query, k=3):
     index, metadata = load_index_and_metadata()
     if index is None or metadata is None:
-        return "⚠️ No documents found. Please upload PDFs first.", []
+        return "⚠️ No index found. Please upload documents.", []
 
     query_vector = model.encode([query])
     distances, indices = index.search(query_vector, k)
@@ -31,20 +30,20 @@ def retrieve_context(query, k=3):
             source = metadata[idx]["source"]
             text = metadata[idx]["text"]
             context_chunks.append(f"From **{source}**:\n{text.strip()[:500]}")
-    return None, context_chunks
+    return context_chunks
 
 def get_answer(query):
-    error_msg, context_chunks = retrieve_context(query)
-    if error_msg:
-        return error_msg, []
+    context_chunks = retrieve_context(query)
+    if isinstance(context_chunks, str):
+        return context_chunks, []
 
-    context_text = "\n\n".join(context_chunks)
+    context_str = "\n\n".join(context_chunks)
     prompt = f"""You are a helpful AI customer support assistant.
 
-Use the following document context to answer the user's question.
+Use the following context from documents to answer the user's question.
 
 Context:
-{context_text}
+{context_str}
 
 Question: {query}
 Answer:"""
