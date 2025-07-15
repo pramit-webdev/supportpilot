@@ -1,3 +1,4 @@
+# llm.py
 import os
 import requests
 import streamlit as st
@@ -28,3 +29,14 @@ def call_llm(prompt):
         return data["choices"][0]["message"]["content"]
     except requests.exceptions.RequestException as e:
         return f"❌ API error: {e}"
+
+def summarize_text(text):
+    if not text.strip():
+        return "No content available for summary."
+    
+    prompt = f"""
+Please generate a concise 1-paragraph summary of the following document content:
+
+{text[:3000]}  # Only first few tokens to stay efficient
+"""
+    return call_llm(prompt)
