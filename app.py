@@ -3,59 +3,52 @@ from ingest import handle_upload, reset_index
 from rag import get_answer
 import os
 
-# --- Page Setup ---
 st.set_page_config(page_title="SupportPilot", layout="wide")
 st.title("🤖 SupportPilot – AI Customer Support Assistant")
 
-# --- Session State ---
+# Debug mode toggle
+debug_mode = st.sidebar.checkbox("🛠 Show debug logs")
+st.session_state.debug = debug_mode
+
+# Initialize chat history
 if "messages" not in st.session_state:
     st.session_state.messages = [
         {"role": "ai", "content": "Hi! I'm SupportPilot. Upload your PDFs and ask me anything!"}
     ]
-if "processed_files" not in st.session_state:
-    st.session_state.processed_files = set()
-if "debug" not in st.session_state:
-    st.session_state.debug = False
 
-# --- Debug Mode ---
-st.session_state.debug = st.sidebar.checkbox("🛠 Show debug logs")
-
-# --- Constants ---
-INDEX_PATH = "data/faiss_index/support_index.faiss"
-
-# --- Sidebar Upload ---
+# Upload PDFs one-by-one
 st.sidebar.header("📁 Upload Knowledge Base")
 uploaded_files = st.sidebar.file_uploader("Upload PDFs", type=["pdf"], accept_multiple_files=True)
 
 if uploaded_files:
     for file in uploaded_files:
-        if file.name not in st.session_state.processed_files:
-            with st.spinner(f"🔄 Indexing `{file.name}`..."):
-                handle_upload([file])
-            st.sidebar.success(f"✅ `{file.name}` indexed successfully.")
-            st.session_state.processed_files.add(file.name)
-    st.rerun()
+        with st.spinner(f"🔄 Processing `{file.name}`..."):
+            success = handle_upload([file])
+        if success:
+            st.sidebar.success(f"✅ `{file.name}` indexed.")
+        else:
+            st.sidebar.warning(f"⚠️ `{file.name}` already indexed or contains no text.")
 
-# --- Sidebar Reset ---
+# Reset system
 if st.sidebar.button("🗑️ Reset All Documents"):
     reset_index()
+    st.sidebar.warning("🧹 All documents and index cleared.")
     st.session_state.messages = [
         {"role": "ai", "content": "Hi! I'm SupportPilot. Upload your PDFs and ask me anything!"}
     ]
-    st.session_state.processed_files.clear()
     st.rerun()
 
-# --- Ensure at least one file is indexed ---
-if not os.path.exists(INDEX_PATH):
-    st.info("📄 Please upload support PDFs to activate SupportPilot.")
-    st.stop()
-
-# --- Display Chat History ---
+# Display chat history
 for msg in st.session_state.messages:
     with st.chat_message(msg["role"]):
         st.markdown(msg["content"])
 
-# --- Chat Input ---
+# Check if FAISS index exists
+if not os.path.exists("data/faiss_index/support_index.faiss"):
+    st.info("📄 Please upload at least one support PDF to start chatting.")
+    st.stop()
+
+# Chat input
 user_input = st.chat_input("Type your question...")
 
 if user_input:
@@ -68,9 +61,9 @@ if user_input:
             response, context_chunks = get_answer(user_input)
             st.markdown(response)
 
-            # Show context used in a collapsible section
-            with st.expander("📄 Sources used"):
-                for chunk in context_chunks:
-                    st.markdown(f"```text\n{chunk}\n```")
+            if context_chunks:
+                with st.expander("📄 Sources used"):
+                    for chunk in context_chunks:
+                        st.markdown(f"```text\n{chunk}\n```")
 
     st.session_state.messages.append({"role": "ai", "content": response})

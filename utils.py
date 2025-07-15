@@ -1,3 +1,5 @@
+# utils.py
+
 def chunk_text(text, max_length=500, overlap=50):
     words = text.split()
     chunks = []

@@ -20,7 +20,7 @@ def load_index_and_metadata():
 def retrieve_context(query, k=3):
     index, metadata = load_index_and_metadata()
     if index is None or metadata is None:
-        return "⚠️ No documents found. Please upload PDFs.", []
+        return "⚠️ No documents found. Please upload PDFs first.", []
 
     query_vector = model.encode([query])
     distances, indices = index.search(query_vector, k)
@@ -28,22 +28,23 @@ def retrieve_context(query, k=3):
     context_chunks = []
     for idx in indices[0]:
         if 0 <= idx < len(metadata):
-            meta = metadata[idx]
-            context_chunks.append(f"From **{meta['source']}**:\n{meta['text'].strip()[:500]}")
-    return context_chunks
+            source = metadata[idx]["source"]
+            text = metadata[idx]["text"]
+            context_chunks.append(f"From **{source}**:\n{text.strip()[:500]}")
+    return None, context_chunks
 
 def get_answer(query):
-    context_chunks = retrieve_context(query)
-    if isinstance(context_chunks, str):
-        return context_chunks, []
+    error_msg, context_chunks = retrieve_context(query)
+    if error_msg:
+        return error_msg, []
 
-    context_str = "\n\n".join(context_chunks)
+    context_text = "\n\n".join(context_chunks)
     prompt = f"""You are a helpful AI customer support assistant.
 
-Use the following context from documents to answer the user's question.
+Use the following document context to answer the user's question.
 
 Context:
-{context_str}
+{context_text}
 
 Question: {query}
 Answer:"""
