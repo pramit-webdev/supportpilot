@@ -1,7 +1,5 @@
 streamlit
 faiss-cpu
-sentence-transformers
-PyPDF2
-python-dotenv
-requests
 pdfplumber
+sentence-transformers
+requests
