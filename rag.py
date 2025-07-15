@@ -6,6 +6,7 @@ from llm import call_llm
 
 INDEX_FILE = "data/faiss_index/support_index.faiss"
 METADATA_FILE = "data/faiss_index/metadata.pkl"
+
 model = SentenceTransformer("all-MiniLM-L6-v2")
 
 def load_index_and_metadata():
@@ -38,7 +39,7 @@ def get_answer(query):
         return context_chunks, []
 
     context_str = "\n\n".join(context_chunks)
-    prompt = f"""You are a helpful AI customer support assistant.
+    prompt = f"""You are a helpful AI assistant.
 
 Use the following context from documents to answer the user's question.
 

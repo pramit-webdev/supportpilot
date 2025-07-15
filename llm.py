@@ -15,7 +15,7 @@ def call_llm(prompt):
     payload = {
         "model": MODEL_NAME,
         "messages": [
-            {"role": "system", "content": "You are a helpful customer support assistant."},
+            {"role": "system", "content": "You are a helpful AI document assistant."},
             {"role": "user", "content": prompt}
         ],
         "temperature": 0.2
@@ -24,7 +24,6 @@ def call_llm(prompt):
     try:
         response = requests.post(GROQ_API_URL, headers=headers, json=payload)
         response.raise_for_status()
-        data = response.json()
-        return data["choices"][0]["message"]["content"]
+        return response.json()["choices"][0]["message"]["content"]
     except requests.exceptions.RequestException as e:
         return f"❌ API error: {e}"
