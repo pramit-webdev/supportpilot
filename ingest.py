@@ -6,10 +6,10 @@ from utils import chunk_text, summarize_text
 import faiss
 import numpy as np
 import pdfplumber
-import pytesseract
 from PIL import Image
 import pandas as pd
 import docx
+from paddleocr import PaddleOCR
 
 DATA_DIR = "data"
 DOCS_DIR = os.path.join(DATA_DIR, "docs")
@@ -19,15 +19,26 @@ METADATA_FILE = os.path.join(INDEX_DIR, "metadata.pkl")
 
 SUPPORTED_EXTS = [".pdf", ".docx", ".doc", ".csv", ".png", ".jpg", ".jpeg"]
 
-model = SentenceTransformer("all-mpnet-base-v2") # More accurate embeddings
+model = SentenceTransformer("all-mpnet-base-v2") # accurate embeddings
+
+# Setup PaddleOCR (en + detection, angle, layout, etc. as needed)
+ocr = PaddleOCR(use_angle_cls=True, lang='en', show_log=False)
 
 os.makedirs(DOCS_DIR, exist_ok=True)
 os.makedirs(INDEX_DIR, exist_ok=True)
 
+def paddleocr_image_to_text(img):
+    """
+    Extracts all text from PIL image using PaddleOCR
+    """
+    result = ocr.ocr(np.array(img), cls=True)
+    lines = []
+    for region in result:
+        for line in region:
+            lines.append(line[1][0])
+    return "\n".join(lines)
+
 def extract_text_from_file(file_path, file_ext):
-    """
-    Extracts text from PDFs (with OCR), DOC/DOCX, CSV, or image files.
-    """
     ext = file_ext.lower()
     text = ""
     try:
@@ -38,9 +49,8 @@ def extract_text_from_file(file_path, file_ext):
                     if page_text and page_text.strip():
                         text += page_text + "\n"
                     else:
-                        # OCR fallback for scanned pages
-                        image = page.to_image(resolution=300).original.convert("RGB")
-                        ocr_result = pytesseract.image_to_string(image)
+                        pil_img = page.to_image(resolution=300).original.convert("RGB")
+                        ocr_result = paddleocr_image_to_text(pil_img)
                         text += ocr_result + "\n"
         elif ext in [".docx", ".doc"]:
             doc = docx.Document(file_path)
@@ -49,8 +59,8 @@ def extract_text_from_file(file_path, file_ext):
             df = pd.read_csv(file_path)
             text = df.to_string(index=False)
         elif ext in [".png", ".jpg", ".jpeg"]:
-            image = Image.open(file_path).convert("RGB")
-            text = pytesseract.image_to_string(image)
+            pil_img = Image.open(file_path).convert("RGB")
+            text = paddleocr_image_to_text(pil_img)
     except Exception as e:
         print(f"Text extraction error for {file_path}: {e}")
     return text
@@ -92,7 +102,7 @@ def handle_upload(uploaded_files):
             st.sidebar.warning(f"⚠️ Unable to generate chunks from {filename}. Skipping.")
             continue
 
-        embeddings = model.encode(chunks) # numpy array
+        embeddings = model.encode(chunks)
         all_chunks.extend(embeddings)
         all_metadata.extend([{"source": filename, "text": chunk} for chunk in chunks])
         summaries[filename] = summarize_text(text)
@@ -115,4 +125,5 @@ def reset_index():
         for file in os.listdir(folder):
             try:
                 os.remove(os.path.join(folder, file))
-            except Exception: pass
+            except Exception:
+                pass

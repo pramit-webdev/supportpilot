@@ -1,9 +1,6 @@
 from textwrap import shorten
 
 def chunk_text(text, max_length=750, overlap=100):
-    """
-    Chunk the text into overlapping windows for embedding.
-    """
     words = text.split()
     if not words:
         return []
@@ -16,8 +13,5 @@ def chunk_text(text, max_length=750, overlap=100):
     return chunks
 
 def summarize_text(text, width=300):
-    """
-    Return a human-friendly shortened summary.
-    """
     summary = shorten(text.strip(), width=width, placeholder="...")
     return f"Summary: {summary}"

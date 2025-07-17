@@ -7,9 +7,6 @@ GROQ_API_URL = "https://api.groq.com/openai/v1/chat/completions"
 MODEL_NAME = "llama3-8b-8192"
 
 def call_llm(prompt):
-    """
-    Calls the Groq LLM API with the given prompt and returns the answer text.
-    """
     if not GROQ_API_KEY:
         return "❌ LLM API key not set."
     headers = {
