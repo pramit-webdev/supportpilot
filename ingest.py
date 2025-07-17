@@ -1,93 +1,82 @@
 import os
 import pickle
-import faiss
-import pdfplumber
 import streamlit as st
 from sentence_transformers import SentenceTransformer
+from utils import chunk_text, summarize_text
+import faiss
+import numpy as np
+import pdfplumber
 import pytesseract
 from PIL import Image
-from utils import chunk_text, summarize_text
-import docx
 import pandas as pd
+import docx
 
-DOCS_DIR = "data/docs"
-INDEX_DIR = "data/faiss_index"
+DATA_DIR = "data"
+DOCS_DIR = os.path.join(DATA_DIR, "docs")
+INDEX_DIR = os.path.join(DATA_DIR, "faiss_index")
 INDEX_FILE = os.path.join(INDEX_DIR, "support_index.faiss")
 METADATA_FILE = os.path.join(INDEX_DIR, "metadata.pkl")
 
 SUPPORTED_EXTS = [".pdf", ".docx", ".doc", ".csv", ".png", ".jpg", ".jpeg"]
 
-model = SentenceTransformer("all-MiniLM-L6-v2")
+model = SentenceTransformer("all-mpnet-base-v2") # More accurate embeddings
 
 os.makedirs(DOCS_DIR, exist_ok=True)
 os.makedirs(INDEX_DIR, exist_ok=True)
 
 def extract_text_from_file(file_path, file_ext):
+    """
+    Extracts text from PDFs (with OCR), DOC/DOCX, CSV, or image files.
+    """
+    ext = file_ext.lower()
     text = ""
-
-    if file_ext.lower() == ".pdf":
-        with pdfplumber.open(file_path) as pdf:
-            for page_number, page in enumerate(pdf.pages, 1):
-                page_text = page.extract_text()
-                if page_text and page_text.strip():
-                    text += page_text + "\n"
-                else:
-                    try:
-                        pil_image = page.to_image(resolution=300).original.convert("RGB")
-                        ocr_result = pytesseract.image_to_string(pil_image)
+    try:
+        if ext == ".pdf":
+            with pdfplumber.open(file_path) as pdf:
+                for page in pdf.pages:
+                    page_text = page.extract_text()
+                    if page_text and page_text.strip():
+                        text += page_text + "\n"
+                    else:
+                        # OCR fallback for scanned pages
+                        image = page.to_image(resolution=300).original.convert("RGB")
+                        ocr_result = pytesseract.image_to_string(image)
                         text += ocr_result + "\n"
-                    except Exception as e:
-                        print(f"OCR error on PDF page {page_number}: {e}")
-
-    elif file_ext.lower() in [".docx", ".doc"]:
-        try:
+        elif ext in [".docx", ".doc"]:
             doc = docx.Document(file_path)
-            for para in doc.paragraphs:
-                text += para.text + "\n"
-        except Exception as e:
-            print(f"Error processing Word file: {e}")
-
-    elif file_ext.lower() == ".csv":
-        try:
+            text += "\n".join(par.text for par in doc.paragraphs)
+        elif ext == ".csv":
             df = pd.read_csv(file_path)
             text = df.to_string(index=False)
-        except Exception as e:
-            print(f"Error processing CSV file: {e}")
-
-    elif file_ext.lower() in [".png", ".jpg", ".jpeg"]:
-        try:
-            pil_image = Image.open(file_path).convert("RGB")
-            ocr_result = pytesseract.image_to_string(pil_image)
-            text += ocr_result + "\n"
-        except Exception as e:
-            print(f"OCR error on image file: {e}")
-
+        elif ext in [".png", ".jpg", ".jpeg"]:
+            image = Image.open(file_path).convert("RGB")
+            text = pytesseract.image_to_string(image)
+    except Exception as e:
+        print(f"Text extraction error for {file_path}: {e}")
     return text
 
 def handle_upload(uploaded_files):
     summaries = {}
-    all_chunks = []
-    all_metadata = []
+    all_chunks, all_metadata = [], []
 
-    # Load existing index
+    # Load existing index/metadata
     if os.path.exists(INDEX_FILE):
         index = faiss.read_index(INDEX_FILE)
         with open(METADATA_FILE, "rb") as f:
             existing_metadata = pickle.load(f)
     else:
-        index = None
-        existing_metadata = []
+        index, existing_metadata = None, []
 
     for file in uploaded_files:
         filename = file.name
         file_ext = os.path.splitext(filename)[1].lower()
         if file_ext not in SUPPORTED_EXTS:
-            st.sidebar.warning(f"Unsupported file type: {filename}. Skipping.")
+            st.sidebar.warning(f"❌ Unsupported file: {filename}. Skipping.")
             continue
 
         file_path = os.path.join(DOCS_DIR, filename)
         if os.path.exists(file_path):
-            st.sidebar.info(f"📌 {filename} already indexed. Skipping.")
+            st.sidebar.info(f"ℹ️ {filename} already exists. Skipping.")
             continue
 
         with open(file_path, "wb") as f:
@@ -99,14 +88,16 @@ def handle_upload(uploaded_files):
             continue
 
         chunks = chunk_text(text)
-        embeddings = model.encode(chunks)
+        if not chunks:
+            st.sidebar.warning(f"⚠️ Unable to generate chunks from {filename}. Skipping.")
+            continue
+
+        embeddings = model.encode(chunks) # numpy array
         all_chunks.extend(embeddings)
         all_metadata.extend([{"source": filename, "text": chunk} for chunk in chunks])
-        summary = summarize_text(text)
-        summaries[filename] = summary
+        summaries[filename] = summarize_text(text)
 
     if all_chunks:
-        import numpy as np
         all_chunks = np.array(all_chunks).astype("float32")
         if index is None:
             dimension = all_chunks.shape[1]
@@ -116,9 +107,12 @@ def handle_upload(uploaded_files):
         faiss.write_index(index, INDEX_FILE)
         with open(METADATA_FILE, "wb") as f:
             pickle.dump(combined_metadata, f)
+
     return summaries
 
 def reset_index():
     for folder in [DOCS_DIR, INDEX_DIR]:
         for file in os.listdir(folder):
-            os.remove(os.path.join(folder, file))
+            try:
+                os.remove(os.path.join(folder, file))
+            except Exception: pass

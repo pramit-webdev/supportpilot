@@ -1,8 +1,8 @@
 streamlit
 faiss-cpu
 pdfplumber
-python-docx
 pandas
+python-docx
 sentence-transformers
 requests
 pytesseract
