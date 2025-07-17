@@ -16,8 +16,8 @@ INDEX_PATH = "data/faiss_index/support_index.faiss"
 
 st.sidebar.header("📁 Upload Knowledge Base")
 uploaded_files = st.sidebar.file_uploader(
-    "Upload PDFs or Images",
-    type=["pdf", "png", "jpg", "jpeg"],
+    "Upload PDFs, Word docs, CSVs, or Images",
+    type=["pdf", "docx", "doc", "csv", "png", "jpg", "jpeg"],
     accept_multiple_files=True
 )
 
@@ -36,12 +36,12 @@ if st.sidebar.button("🗑️ Reset All Documents"):
 
 index_ready = os.path.exists(INDEX_PATH)
 if not index_ready:
-    st.info("📄 Please upload support PDFs or images to activate DocuPilot.")
+    st.info("📄 Please upload support PDFs, Word docs, CSVs, or images to activate DocuPilot.")
     st.stop()
 
 if "messages" not in st.session_state:
     st.session_state.messages = [
-        {"role": "ai", "content": "Hi! I'm DocuPilot. Upload your PDFs and images, then ask me anything!"}
+        {"role": "ai", "content": "Hi! I'm DocuPilot. Upload your PDFs, Word docs, CSVs, or images, then ask me anything!"}
     ]
 
 for msg in st.session_state.messages:
@@ -60,5 +60,5 @@ if user_input:
             st.markdown(response)
             with st.expander("📄 Sources used"):
                 for chunk in context_chunks:
-                    st.markdown(f"``````")
+                    st.markdown(chunk)
     st.session_state.messages.append({"role": "ai", "content": response})

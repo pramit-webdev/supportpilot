@@ -1,6 +1,8 @@
 streamlit
 faiss-cpu
 pdfplumber
+python-docx
+pandas
 sentence-transformers
 requests
 pytesseract
