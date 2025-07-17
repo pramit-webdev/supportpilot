@@ -3,3 +3,5 @@ faiss-cpu
 pdfplumber
 sentence-transformers
 requests
+pytesseract
+Pillow

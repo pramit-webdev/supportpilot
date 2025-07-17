@@ -5,6 +5,10 @@ import pdfplumber
 import streamlit as st
 from sentence_transformers import SentenceTransformer
 from utils import chunk_text, summarize_text
+import pytesseract
+from PIL import Image
+import io
+
 
 DOCS_DIR = "data/docs"
 INDEX_DIR = "data/faiss_index"
@@ -19,10 +23,19 @@ os.makedirs(INDEX_DIR, exist_ok=True)
 def extract_text_from_pdf(file_path):
     text = ""
     with pdfplumber.open(file_path) as pdf:
-        for page in pdf.pages:
+        for page_number, page in enumerate(pdf.pages, 1):
             page_text = page.extract_text()
-            if page_text:
+            if page_text and page_text.strip():
                 text += page_text + "\n"
+            else:
+                # OCR fallback for scanned/image-only pages
+                try:
+                    pil_image = page.to_image(resolution=300).original.convert("RGB")
+                    ocr_result = pytesseract.image_to_string(pil_image)
+                    if ocr_result.strip():
+                        text += ocr_result + "\n"
+                except Exception as e:
+                    print(f"OCR error on page {page_number}: {e}")
     return text
 
 def handle_upload(uploaded_files):
