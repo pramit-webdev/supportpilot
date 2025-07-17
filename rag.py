@@ -21,10 +21,8 @@ def retrieve_context(query, k=3):
     index, metadata = load_index_and_metadata()
     if index is None or metadata is None:
         return "⚠️ No index found. Please upload documents.", []
-
     query_vector = model.encode([query])
     distances, indices = index.search(query_vector, k)
-
     context_chunks = []
     for idx in indices[0]:
         if 0 <= idx < len(metadata):
@@ -37,17 +35,17 @@ def get_answer(query):
     context_chunks = retrieve_context(query)
     if isinstance(context_chunks, str):
         return context_chunks, []
-
     context_str = "\n\n".join(context_chunks)
     prompt = f"""You are a helpful AI assistant.
 
 Use the following context from documents to answer the user's question.
 
 Context:
+
 {context_str}
 
 Question: {query}
-Answer:"""
 
+Answer:"""
     answer = call_llm(prompt)
     return answer, context_chunks

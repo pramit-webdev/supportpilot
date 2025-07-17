@@ -11,7 +11,6 @@ def call_llm(prompt):
         "Authorization": f"Bearer {GROQ_API_KEY}",
         "Content-Type": "application/json"
     }
-
     payload = {
         "model": MODEL_NAME,
         "messages": [
@@ -20,7 +19,6 @@ def call_llm(prompt):
         ],
         "temperature": 0.2
     }
-
     try:
         response = requests.post(GROQ_API_URL, headers=headers, json=payload)
         response.raise_for_status()
