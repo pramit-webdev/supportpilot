@@ -22,7 +22,7 @@ SUPPORTED_EXTS = [".pdf", ".docx", ".doc", ".csv", ".png", ".jpg", ".jpeg"]
 model = SentenceTransformer("all-mpnet-base-v2") # accurate embeddings
 
 # Setup PaddleOCR (en + detection, angle, layout, etc. as needed)
-ocr = PaddleOCR(use_angle_cls=True, lang='en', show_log=False)
+ocr = PaddleOCR(use_angle_cls=True, lang='en')
 
 os.makedirs(DOCS_DIR, exist_ok=True)
 os.makedirs(INDEX_DIR, exist_ok=True)
