@@ -5,5 +5,5 @@ python-docx
 pandas
 sentence-transformers
 requests
-easyocr
+pytesseract
 Pillow
