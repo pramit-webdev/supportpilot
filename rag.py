@@ -1,12 +1,9 @@
-import os
-import faiss
-import pickle
+import os, faiss, pickle
 from sentence_transformers import SentenceTransformer
 from llm import call_llm
 
 INDEX_FILE = "data/faiss_index/support_index.faiss"
 METADATA_FILE = "data/faiss_index/metadata.pkl"
-
 model = SentenceTransformer("all-mpnet-base-v2")
 
 def load_index_and_metadata():
@@ -17,7 +14,7 @@ def load_index_and_metadata():
         metadata = pickle.load(f)
     return index, metadata
 
-def retrieve_context(query, k=7):
+def retrieve_context(query, k=12):
     index, metadata = load_index_and_metadata()
     if index is None or not metadata:
         return [], []
@@ -29,6 +26,9 @@ def retrieve_context(query, k=7):
             entry = metadata[idx]
             chunk = f"From **{entry['source']}**:\n{entry['text'][:700].strip()}"
             context_chunks.append(chunk)
+    print(f"🔍 Top-k ({k}) chunks for: {query}")
+    for i, c in enumerate(context_chunks[:3]):
+        print(f"-- Chunk {i+1}: {c[:250]}...\n")
     return context_chunks
 
 def get_answer(query):
@@ -37,10 +37,12 @@ def get_answer(query):
         return "⚠️ No relevant context found. Check uploads!", []
     context_str = "\n\n".join(context_chunks)
     prompt = (
-f"You are an expert assistant. Answer using ONLY this context.\n\n"
-f"{context_str}\n\n"
-f"Question: {query}\n\n"
-f"Answer in detail:"
+        f"You are a document QA expert. Answer the following question using ONLY the provided context. "
+        f"For every answer, cite the specific source(s) and the relevant passage. "
+        f"If the answer cannot be found verbatim, say 'The answer is not available in the documents.'\n\n"
+        f"Context:\n{context_str}\n\n"
+        f"Question:\n{query}\n\n"
+        f"Answer:"
     )
     answer = call_llm(prompt)
     return answer, context_chunks

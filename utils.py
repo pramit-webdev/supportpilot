@@ -1,6 +1,7 @@
 from textwrap import shorten
 
-def chunk_text(text, max_length=750, overlap=100):
+def chunk_text(text, max_length=1000, overlap=150):
+    # Increased chunk size and overlap for full context retention—excellent for multi-sentence/tabular/cell answers
     words = text.split()
     if not words:
         return []
@@ -12,6 +13,6 @@ def chunk_text(text, max_length=750, overlap=100):
         i += max_length - overlap
     return chunks
 
-def summarize_text(text, width=300):
+def summarize_text(text, width=350):
     summary = shorten(text.strip(), width=width, placeholder="...")
     return f"Summary: {summary}"
