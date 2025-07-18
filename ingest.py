@@ -26,8 +26,8 @@ def extract_text(file_path, ext):
             with pdfplumber.open(file_path) as pdf:
                 return "\n".join(page.extract_text() or "" for page in pdf.pages)
         elif ext in [".docx", ".doc"]:
-            doc = docx.Document(file_path)
-            return "\n".join(p.text for p in doc.paragraphs)
+            doc_file = docx.Document(file_path)
+            return "\n".join(p.text for p in doc_file.paragraphs)
         elif ext == ".csv":
             return pd.read_csv(file_path).to_markdown(index=False)
         elif ext == ".xlsx":
@@ -39,7 +39,8 @@ def handle_upload(uploaded_files):
     os.makedirs(DOCS_DIR, exist_ok=True)
     os.makedirs(INDEX_DIR, exist_ok=True)
     summaries = {}
-    all_chunks, new_metadata = [], []
+    all_chunks = []
+    new_metadata = []
     for file in uploaded_files:
         filename = file.name
         ext = os.path.splitext(filename)[1].lower()
@@ -64,13 +65,14 @@ def handle_upload(uploaded_files):
         st.success(f"✅ {filename} indexed.")
     if not all_chunks:
         return summaries
-    all_chunks = faiss.numpy_to_array(np.array(all_chunks).astype("float32"))
+    all_chunks = np.array(all_chunks).astype("float32")
     if os.path.exists(INDEX_FILE) and os.path.exists(METADATA_FILE):
         index = faiss.read_index(INDEX_FILE)
         with open(METADATA_FILE, "rb") as f:
             existing_metadata = pickle.load(f)
     else:
-        index = faiss.IndexFlatL2(all_chunks.shape[1])
+        dimension = all_chunks.shape[1]
+        index = faiss.IndexFlatL2(dimension)
         existing_metadata = []
     index.add(all_chunks)
     all_metadata = existing_metadata + new_metadata
