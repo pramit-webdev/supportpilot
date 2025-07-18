@@ -1,4 +1,7 @@
-import os, requests, streamlit as st
+import os
+import requests
+import streamlit as st
+
 GROQ_API_KEY = st.secrets.get("GROQ_API_KEY") or os.getenv("GROQ_API_KEY")
 GROQ_API_URL = "https://api.groq.com/openai/v1/chat/completions"
 MODEL_NAME = "llama3-8b-8192"

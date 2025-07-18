@@ -37,12 +37,10 @@ def get_answer(query):
         return "⚠️ No relevant context found. Please try a different question.", []
     context_str = "\n---\n".join(context_chunks)
     prompt = (
-        "You are a helpful document assistant.\n"
-        "Answer the question using ONLY the context below.\n\n"
-        "Context:\n"
-        f"{context_str}\n\n"
-        f"Question: {query}\n"
-        "Answer:"
+        "You are a helpful assistant. Use the context below to answer accurately.\n\n"
+        f"Context:\n{context_str}\n\n"
+        f"Question: {query}\n\n"
+        f"Answer:"
     )
     answer = call_llm(prompt)
     return answer, context_chunks
