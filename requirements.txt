@@ -5,5 +5,7 @@ python-docx
 pandas
 sentence-transformers
 requests
-paddleocr
+pytesseract
 Pillow
+paddleocr
+paddlepaddle  # 👈 Required & missing dependency
