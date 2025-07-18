@@ -7,6 +7,8 @@ import pandas as pd
 from sentence_transformers import SentenceTransformer
 from utils import chunk_text, summarize_text
 import streamlit as st
+import numpy as np
+
 
 DOCS_DIR = "data/docs"
 INDEX_DIR = "data/faiss_index"
