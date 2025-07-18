@@ -9,10 +9,10 @@ st.title("🤖 DocuPilot – Your AI Document Assistant")
 INDEX_PATH = "data/faiss_index/support_index.faiss"
 
 with st.sidebar:
-    st.header("📁 File Upload")
+    st.header("📁 Upload Documents")
     uploaded_files = st.file_uploader(
-        "Upload PDFs, Word Docs, CSVs or Images",
-        type=["pdf", "docx", "doc", "csv", "png", "jpg", "jpeg"],
+        "Upload PDFs, Word Docs, CSVs, or Excel",
+        type=["pdf", "docx", "doc", "csv", "xlsx"],
         accept_multiple_files=True
     )
     if st.button("🗑️ Reset all documents"):
@@ -29,19 +29,19 @@ if uploaded_files:
             st.markdown(summary)
 
 if not os.path.exists(INDEX_PATH):
-    st.info("Upload files to activate DocuPilot.")
+    st.info("Upload documents to activate DocuPilot.")
     st.stop()
 
 if "messages" not in st.session_state:
     st.session_state.messages = [
-        {"role": "ai", "content": "Hi! Upload your files (PDF, Word, CSV, images) and ask me anything!"}
+        {"role": "ai", "content": "Hi! Upload your PDFs, Word docs, CSVs, or Excel files and ask a question!"}
     ]
 
 for m in st.session_state.messages:
     with st.chat_message(m["role"]):
         st.markdown(m["content"])
 
-user_input = st.chat_input("Ask a question about your documents...")
+user_input = st.chat_input("Ask a question...")
 if user_input:
     st.session_state.messages.append({"role": "user", "content": user_input})
     with st.chat_message("user"): st.markdown(user_input)
@@ -49,7 +49,7 @@ if user_input:
         with st.spinner("Searching and generating answer..."):
             answer, context_chunks = get_answer(user_input)
             st.markdown(answer)
-            with st.expander("Context Chunks Used"):
+            with st.expander("Context Used"):
                 for i, chunk in enumerate(context_chunks, 1):
-                    st.markdown(f"**Chunk {i}:**  {chunk[:500]}")
+                    st.markdown(f"**Chunk {i}:**  {chunk}")
     st.session_state.messages.append({"role": "ai", "content": answer})

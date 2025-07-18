@@ -1,9 +1,9 @@
-python-doctr[torch]
-torch
-Pillow
+streamlit
+faiss-cpu
 pdfplumber
 python-docx
 pandas
-faiss-cpu
-streamlit
+openpyxl
 sentence-transformers
+requests
+Pillow
