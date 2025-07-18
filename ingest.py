@@ -9,7 +9,7 @@ import pdfplumber
 from PIL import Image
 import pandas as pd
 import docx
-from paddleocr import PaddleOCR
+import easyocr
 
 DATA_DIR = "data"
 DOCS_DIR = os.path.join(DATA_DIR, "docs")
@@ -19,24 +19,16 @@ METADATA_FILE = os.path.join(INDEX_DIR, "metadata.pkl")
 
 SUPPORTED_EXTS = [".pdf", ".docx", ".doc", ".csv", ".png", ".jpg", ".jpeg"]
 
-model = SentenceTransformer("all-mpnet-base-v2") # accurate embeddings
-
-# Setup PaddleOCR (en + detection, angle, layout, etc. as needed)
-ocr = PaddleOCR(use_angle_cls=True, lang='en')
+model = SentenceTransformer("all-mpnet-base-v2")
+reader = easyocr.Reader(['en'], gpu=False)
 
 os.makedirs(DOCS_DIR, exist_ok=True)
 os.makedirs(INDEX_DIR, exist_ok=True)
 
-def paddleocr_image_to_text(img):
-    """
-    Extracts all text from PIL image using PaddleOCR
-    """
-    result = ocr.ocr(np.array(img), cls=True)
-    lines = []
-    for region in result:
-        for line in region:
-            lines.append(line[1][0])
-    return "\n".join(lines)
+def easyocr_image_to_text(img):
+    # img: PIL Image (RGB)
+    result = reader.readtext(np.array(img), detail=0)
+    return "\n".join(result)
 
 def extract_text_from_file(file_path, file_ext):
     ext = file_ext.lower()
@@ -50,7 +42,7 @@ def extract_text_from_file(file_path, file_ext):
                         text += page_text + "\n"
                     else:
                         pil_img = page.to_image(resolution=300).original.convert("RGB")
-                        ocr_result = paddleocr_image_to_text(pil_img)
+                        ocr_result = easyocr_image_to_text(pil_img)
                         text += ocr_result + "\n"
         elif ext in [".docx", ".doc"]:
             doc = docx.Document(file_path)
@@ -60,7 +52,7 @@ def extract_text_from_file(file_path, file_ext):
             text = df.to_string(index=False)
         elif ext in [".png", ".jpg", ".jpeg"]:
             pil_img = Image.open(file_path).convert("RGB")
-            text = paddleocr_image_to_text(pil_img)
+            text = easyocr_image_to_text(pil_img)
     except Exception as e:
         print(f"Text extraction error for {file_path}: {e}")
     return text
