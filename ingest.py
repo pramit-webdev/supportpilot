@@ -1,100 +1,146 @@
-import os, pickle, streamlit as st, faiss, numpy as np, pdfplumber, pandas as pd, docx
+import os
+import faiss
+import pickle
+import pdfplumber
+import docx
+import pandas as pd
+import pytesseract
+from PIL import Image
 from sentence_transformers import SentenceTransformer
-from utils import chunk_text, summarize_text
+from utils import chunk_text
+import streamlit as st
 
-DATA_DIR = "data"
-DOCS_DIR = os.path.join(DATA_DIR, "docs")
-INDEX_DIR = os.path.join(DATA_DIR, "faiss_index")
+# Paths
+DOCS_DIR = "data/docs"
+INDEX_DIR = "data/faiss_index"
 INDEX_FILE = os.path.join(INDEX_DIR, "support_index.faiss")
 METADATA_FILE = os.path.join(INDEX_DIR, "metadata.pkl")
 
-SUPPORTED_EXTS = [".pdf", ".docx", ".doc", ".csv", ".xlsx"]
+# Supported formats
+SUPPORTED_IMAGE_TYPES = [".png", ".jpg", ".jpeg", ".bmp", ".tiff"]
 
-model = SentenceTransformer("all-mpnet-base-v2")
+# Load embedding model once
+model = SentenceTransformer("all-MiniLM-L6-v2")
+
+# Ensure folders exist
 os.makedirs(DOCS_DIR, exist_ok=True)
 os.makedirs(INDEX_DIR, exist_ok=True)
 
-def extract_text_from_file(file_path, file_ext):
-    ext = file_ext.lower()
+# --- Extraction Functions ---
+
+def extract_text_from_pdf(file_path):
     text = ""
     try:
-        if ext == ".pdf":
-            with pdfplumber.open(file_path) as pdf:
-                for page in pdf.pages:
-                    page_text = page.extract_text()
-                    # Add fallback: PDF text extraction fails often on tables!
-                    if not page_text or not page_text.strip():
-                        st.sidebar.warning(f"⚠️ PDF extraction failed on some pages in {os.path.basename(file_path)}. Consider exporting as .docx or .csv.")
-                    else:
-                        text += page_text + "\n"
-        elif ext in [".docx", ".doc"]:
-            docfile = docx.Document(file_path)
-            text += "\n".join(par.text for par in docfile.paragraphs)
-        elif ext == ".csv":
-            # Convert CSVs to Markdown tables for better semantic context
-            df = pd.read_csv(file_path)
-            text = df.to_markdown(index=False)
-        elif ext == ".xlsx":
-            df = pd.read_excel(file_path)
-            text = df.to_markdown(index=False)
+        with pdfplumber.open(file_path) as pdf:
+            for page in pdf.pages:
+                text += page.extract_text() or ""
+        return text
     except Exception as e:
-        st.sidebar.error(f"❌ Extraction error in {os.path.basename(file_path)}: {e}")
-        print(f"Text extraction error for {file_path}: {e}")
-    print(f"🟢 Extracted text from {os.path.basename(file_path)}:\n{text[:500]}...\n")
-    return text
+        return f"❌ Extraction error in {os.path.basename(file_path)}: {e}"
+
+def extract_text_from_docx(file_path):
+    try:
+        doc = docx.Document(file_path)
+        return "\n".join([para.text for para in doc.paragraphs])
+    except Exception as e:
+        return f"❌ Extraction error in {os.path.basename(file_path)}: {e}"
+
+def extract_text_from_csv(file_path):
+    try:
+        df = pd.read_csv(file_path)
+        return df.to_string(index=False)  # Avoid tabulate dependency
+    except Exception as e:
+        return f"❌ Extraction error in {os.path.basename(file_path)}: {e}"
+
+def extract_text_from_image(file_path):
+    try:
+        image = Image.open(file_path)
+        return pytesseract.image_to_string(image)
+    except Exception as e:
+        return f"❌ OCR extraction error in {os.path.basename(file_path)}: {e}"
+
+# --- Handle Uploads ---
 
 def handle_upload(uploaded_files):
+    existing_files = set(os.listdir(DOCS_DIR))
+    all_chunks = []
+    new_metadata = []
     summaries = {}
-    all_chunks, all_metadata = [], []
-    if os.path.exists(INDEX_FILE):
+
+    for file in uploaded_files:
+        filename = file.name
+        file_path = os.path.join(DOCS_DIR, filename)
+
+        if filename in existing_files:
+            st.info(f"ℹ️ {filename} is already indexed. Skipping.")
+            continue
+
+        # Save file
+        with open(file_path, "wb") as f:
+            f.write(file.getbuffer())
+
+        # Extract based on file type
+        ext = os.path.splitext(filename)[1].lower()
+        if ext == ".pdf":
+            text = extract_text_from_pdf(file_path)
+        elif ext == ".docx":
+            text = extract_text_from_docx(file_path)
+        elif ext == ".csv":
+            text = extract_text_from_csv(file_path)
+        elif ext in SUPPORTED_IMAGE_TYPES:
+            text = extract_text_from_image(file_path)
+        else:
+            st.warning(f"⚠️ Unsupported file type: {filename}")
+            continue
+
+        if not text or text.strip() == "":
+            st.warning(f"⚠️ No text extracted from {filename}. Skipping.")
+            continue
+
+        # Chunking
+        chunks = chunk_text(text)
+        if not chunks:
+            st.warning(f"⚠️ No valid chunks generated from {filename}. Skipping.")
+            continue
+
+        all_chunks.extend(chunks)
+        new_metadata.extend([{"source": filename, "text": chunk} for chunk in chunks])
+
+        # Generate summary (basic first paragraph)
+        summaries[filename] = text.strip().split("\n")[0][:500]
+        st.success(f"✅ {filename} uploaded and indexed.")
+
+    # Return if no valid chunks
+    if not all_chunks:
+        return summaries
+
+    # Encode all new chunks
+    new_embeddings = model.encode(all_chunks, batch_size=32, show_progress_bar=False)
+
+    # Load existing index + metadata (if available)
+    if os.path.exists(INDEX_FILE) and os.path.exists(METADATA_FILE):
         index = faiss.read_index(INDEX_FILE)
         with open(METADATA_FILE, "rb") as f:
             existing_metadata = pickle.load(f)
     else:
-        index, existing_metadata = None, []
-    for file in uploaded_files:
-        filename = file.name
-        file_ext = os.path.splitext(filename)[1].lower()
-        if file_ext not in SUPPORTED_EXTS:
-            st.sidebar.warning(f"❌ Unsupported file: {filename}. Skipping.")
-            continue
-        file_path = os.path.join(DOCS_DIR, filename)
-        if os.path.exists(file_path):
-            st.sidebar.info(f"📄 {filename} already exists. Skipping.")
-            continue
-        with open(file_path, "wb") as f:
-            f.write(file.getbuffer())
-        text = extract_text_from_file(file_path, file_ext)
-        if not text or not text.strip():
-            st.sidebar.warning(f"⚠️ No text found in {filename}. Skipping.")
-            continue
-        chunks = chunk_text(text)
-        if not chunks:
-            st.sidebar.warning(f"⚠️ Unable to chunk {filename}. Skipping.")
-            continue
-        print(f"🧩 Chunks for {filename} (showing up to 2):")
-        for idx, chunk in enumerate(chunks[:2]):
-            print(f"-- Chunk {idx+1}: {chunk[:250]}...\n")
-        embeddings = model.encode(chunks)
-        all_chunks.extend(embeddings)
-        all_metadata.extend([{"source": filename, "text": chunk} for chunk in chunks])
-        summaries[filename] = summarize_text(text)
-    if all_chunks:
-        all_chunks = np.array(all_chunks).astype("float32")
-        if index is None:
-            dimension = all_chunks.shape[1]
-            index = faiss.IndexFlatL2(dimension)
-        index.add(all_chunks)
-        combined_metadata = existing_metadata + all_metadata
-        faiss.write_index(index, INDEX_FILE)
-        with open(METADATA_FILE, "wb") as f:
-            pickle.dump(combined_metadata, f)
+        dimension = new_embeddings[0].shape[0]
+        index = faiss.IndexFlatL2(dimension)
+        existing_metadata = []
+
+    # Add new data to index
+    index.add(new_embeddings)
+    all_metadata = existing_metadata + new_metadata
+
+    # Save index and metadata
+    faiss.write_index(index, INDEX_FILE)
+    with open(METADATA_FILE, "wb") as f:
+        pickle.dump(all_metadata, f)
+
     return summaries
 
 def reset_index():
     for folder in [DOCS_DIR, INDEX_DIR]:
         for file in os.listdir(folder):
-            try:
-                os.remove(os.path.join(folder, file))
-            except Exception:
-                pass
+            os.remove(os.path.join(folder, file))
+    st.session_state.files_indexed = False
+    st.session_state.messages = []
