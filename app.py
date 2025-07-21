@@ -8,7 +8,10 @@ st.title("🤖 DocuPilot – Your AI Document Assistant")
 
 INDEX_PATH = "data/faiss_index/support_index.faiss"
 
-# Sidebar for file upload
+# Track indexed filenames
+if "indexed_files" not in st.session_state:
+    st.session_state.indexed_files = set()
+
 with st.sidebar:
     st.header("📁 Upload Your Files")
     uploaded_files = st.file_uploader(
@@ -19,36 +22,41 @@ with st.sidebar:
 
     if st.button("🗑️ Reset All Documents"):
         reset_index()
+        st.session_state.indexed_files = set()
         st.warning("All files and indexes have been cleared.")
         st.rerun()
 
-# Index files only once
-if uploaded_files and not st.session_state.get("files_indexed"):
-    with st.spinner("Indexing files..."):
-        summaries = handle_upload(uploaded_files)
-    st.session_state.files_indexed = True
-    for fname, summary in summaries.items():
-        st.sidebar.success(f"Indexed: {fname}")
-        with st.sidebar.expander(f"Summary - {fname}"):
-            st.markdown(summary)
+# Index only new files
+new_files = []
+if uploaded_files:
+    for file in uploaded_files:
+        if file.name not in st.session_state.indexed_files:
+            new_files.append(file)
 
-# Stop if no index is present
+    if new_files:
+        with st.spinner("Indexing new files..."):
+            summaries = handle_upload(new_files)
+        for file in new_files:
+            st.session_state.indexed_files.add(file.name)
+        for fname, summary in summaries.items():
+            st.sidebar.success(f"Indexed: {fname}")
+            with st.sidebar.expander(f"Summary - {fname}"):
+                st.markdown(summary)
+
 if not os.path.exists(INDEX_PATH):
     st.info("Upload documents to get started.")
     st.stop()
 
-# Initialize chat state
+# Initialize chat
 if "messages" not in st.session_state:
     st.session_state.messages = [
         {"role": "ai", "content": "Hi! Upload files and ask a question about their contents."}
     ]
 
-# Display previous messages
 for m in st.session_state.messages:
     with st.chat_message(m["role"]):
         st.markdown(m["content"])
 
-# User question input
 if user_input := st.chat_input("Ask a question..."):
     st.session_state.messages.append({"role": "user", "content": user_input})
     with st.chat_message("user"):
