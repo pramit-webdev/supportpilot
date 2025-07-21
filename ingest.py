@@ -1,3 +1,5 @@
+# ✅ ingest.py (track file type and upload date)
+
 import os
 import faiss
 import pickle
@@ -8,7 +10,7 @@ from sentence_transformers import SentenceTransformer
 from utils import chunk_text, summarize_text
 import streamlit as st
 import numpy as np
-
+from datetime import datetime
 
 DOCS_DIR = "data/docs"
 INDEX_DIR = "data/faiss_index"
@@ -62,7 +64,12 @@ def handle_upload(uploaded_files):
             continue
         embeddings = model.encode(chunks)
         all_chunks.extend(embeddings)
-        new_metadata.extend([{"source": filename, "text": chunk} for chunk in chunks])
+        new_metadata.extend([{
+            "source": filename,
+            "text": chunk,
+            "file_type": ext,
+            "upload_date": str(datetime.now().date())
+        } for chunk in chunks])
         summaries[filename] = summarize_text(text)
         st.success(f"✅ {filename} indexed.")
     if not all_chunks:
