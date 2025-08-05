@@ -10,3 +10,4 @@ Pillow
 tabulate
 deepgram-sdk
 soundfile
+aiohttp
