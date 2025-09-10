@@ -2,11 +2,20 @@ import os
 import requests
 import streamlit as st
 
-GROQ_API_KEY = st.secrets("GROQ_API_KEY")
+# ✅ Fix: use [] instead of () for st.secrets
+if "GROQ_API_KEY" not in st.secrets:
+    st.error("❌ GROQ_API_KEY missing in Streamlit secrets. Please set it in .streamlit/secrets.toml")
+    GROQ_API_KEY = None
+else:
+    GROQ_API_KEY = st.secrets["GROQ_API_KEY"]
+
 GROQ_API_URL = "https://api.groq.com/openai/v1/chat/completions"
 MODEL_NAME = "llama3-8b-8192"
 
 def call_llm(prompt):
+    if not GROQ_API_KEY:
+        return "❌ No API key found. Please configure GROQ_API_KEY in .streamlit/secrets.toml"
+
     headers = {
         "Authorization": f"Bearer {GROQ_API_KEY}",
         "Content-Type": "application/json"
@@ -24,6 +33,9 @@ def call_llm(prompt):
     try:
         response = requests.post(GROQ_API_URL, headers=headers, json=payload)
         response.raise_for_status()
-        return response.json()["choices"][0]["message"]["content"]
+        data = response.json()
+        return data["choices"][0]["message"]["content"]
     except requests.exceptions.RequestException as e:
         return f"❌ API error: {e}"
+    except Exception as e:
+        return f"❌ Unexpected error: {e}"
